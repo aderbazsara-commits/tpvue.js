@@ -1,139 +1,144 @@
+
 <template>
   <div class="container">
-    <h1>Stock de la buvette associative</h1>
+    <h1>Budget étudiant</h1>
 
-    <!-- Alerte globale -->
-    <p v-if="nombreRupture > 0" class="alerte">
-      Attention ! {{ nombreRupture }} article(s) en rupture de stock.
-    </p>
-
-    <!-- Resume global -->
-    <div class="resume">
-      <p>Valeur totale du stock : {{ valeurTotaleStock.toFixed(2) }} DH</p>
-      <p>Nombre d'articles en rupture : {{ nombreRupture }}</p>
-    </div>
-
-    <!-- Recherche et filtre -->
-    <div class="filtres">
+    <!-- Budget mensuel -->
+    <div class="budget">
+      <label>Budget mensuel (DH) :</label>
       <input
-        v-model="rechercheTexte"
-        type="text"
-        placeholder="Rechercher par nom..."
+        type="number"
+        v-model.number="budgetMensuel"
+        min="0"
       />
-
-      <select v-model="filtreCategorie">
-        <option value="">Toutes les catégories</option>
-        <option value="Boisson">Boisson</option>
-        <option value="Snack">Snack</option>
-        <option value="Autre">Autre</option>
-      </select>
     </div>
 
-    <!-- Liste des articles -->
-    <div v-if="articlesFiltres.length === 0">
-      Aucun article trouvé.
+    <!-- Alerte budget : les conditions doivent être adjacentes -->
+    <div v-if="totalGeneral < budgetMensuel * 0.8" class="ok">
+      Budget maîtrisé : vous avez dépensé moins de 80 % du budget.
+    </div>
+    <div
+      v-else-if="totalGeneral <= budgetMensuel"
+      class="attention"
+    >
+      Attention : vous avez utilisé au moins 80 % de votre budget.
+    </div>
+    <div v-else class="depasse">
+      Budget dépassé ! Vous avez dépensé plus que prévu.
     </div>
 
-    <div v-else>
-      <div
-        v-for="article in articlesFiltres"
-        :key="article.id"
-        class="article"
+    <!-- Résumé -->
+    <div class="resume">
+      <p>Total des dépenses affichées : {{ totalFiltre.toFixed(2) }} DH</p>
+      <p>Total général : {{ totalGeneral.toFixed(2) }} DH</p>
+      <p>Moyenne par dépense : {{ moyenneDepense.toFixed(2) }} DH</p>
+    </div>
+
+    <!-- Filtres -->
+    <h2>Filtrer les dépenses</h2>
+    <div class="filtres">
+      <button
+        @click="selectionnerCategorie('toutes')"
+        :class="{ active: filtreCategorie === 'toutes' }"
       >
-        <h3>{{ article.nom }}</h3>
+        Toutes
+      </button>
 
-        <p>Catégorie : {{ article.categorie }}</p>
-        <p>Prix unitaire : {{ article.prixUnitaire }} DH</p>
-        <p>Quantité : {{ article.quantite }}</p>
+      <button
+        @click="selectionnerCategorie('Alimentation')"
+        :class="{ active: filtreCategorie === 'Alimentation' }"
+      >
+        Alimentation
+      </button>
 
-        <!-- Les conditions doivent respecter cet ordre -->
-        <span v-if="article.quantite === 0" class="rupture">
-          Rupture
-        </span>
+      <button
+        @click="selectionnerCategorie('Transport')"
+        :class="{ active: filtreCategorie === 'Transport' }"
+      >
+        Transport
+      </button>
 
-        <span
-          v-else-if="article.quantite <= article.seuilAlerte"
-          class="faible"
-        >
-          Stock faible
-        </span>
+      <button
+        @click="selectionnerCategorie('Loisirs')"
+        :class="{ active: filtreCategorie === 'Loisirs' }"
+      >
+        Loisirs
+      </button>
 
-        <span v-else class="ok">
-          Ok
-        </span>
+      <button
+        @click="selectionnerCategorie('Études')"
+        :class="{ active: filtreCategorie === 'Études' }"
+      >
+        Études
+      </button>
+    </div>
 
-        <div class="actions">
-          <button @click="incrementer(article)">+</button>
-          <button @click="decrementer(article)">-</button>
+    <!-- Liste des dépenses -->
+    <h2>Mes dépenses</h2>
 
-          <button @click="toggleDetail(article)">
-            Détail
-          </button>
-
-          <button @click="supprimerArticle(article)">
-            Supprimer
-          </button>
+    <div v-if="depensesFiltrees.length > 0">
+      <div
+        v-for="d in depensesFiltrees"
+        :key="d.id"
+        class="depense"
+      >
+        <div>
+          <strong>{{ d.titre }}</strong>
+          <p>Catégorie : {{ d.categorie }}</p>
+          <p>Montant : {{ d.montant }} DH</p>
         </div>
 
-        <!-- Detail de l'article -->
-        <div
-          v-show="articleDetailId === article.id"
-          class="detail"
-        >
-          <p>Identifiant : {{ article.id }}</p>
-          <p>Seuil d'alerte : {{ article.seuilAlerte }}</p>
-          <p>
-            Valeur du stock :
-            {{ (article.quantite * article.prixUnitaire).toFixed(2) }} DH
-          </p>
-        </div>
+        <button @click="supprimerDepense(d)">
+          Supprimer
+        </button>
       </div>
     </div>
+    <p v-else>Aucune dépense dans cette catégorie.</p>
 
     <!-- Formulaire d'ajout -->
-    <h2>Ajouter un article</h2>
+    <h2>Ajouter une dépense</h2>
 
-    <form @submit.prevent="ajouterArticle">
+    <form @submit.prevent="ajouterDepense">
       <input
-        v-model.trim="nouvelArticle.nom"
-        placeholder="Nom de l'article"
+        v-model.trim="nouvelleDepense.titre"
+        type="text"
+        placeholder="Titre de la dépense"
         required
       />
 
-      <select v-model="nouvelArticle.categorie" required>
-        <option disabled value="">Choisir une catégorie</option>
-        <option value="Boisson">Boisson</option>
-        <option value="Snack">Snack</option>
-        <option value="Autre">Autre</option>
-      </select>
-
       <input
-        v-model.number="nouvelArticle.prixUnitaire"
+        v-model.number="nouvelleDepense.montant"
         type="number"
-        min="0"
+        min="0.01"
         step="0.01"
-        placeholder="Prix unitaire"
+        placeholder="Montant en DH"
         required
       />
 
-      <input
-        v-model.number="nouvelArticle.quantite"
-        type="number"
-        min="0"
-        placeholder="Quantité"
-        required
-      />
-
-      <input
-        v-model.number="nouvelArticle.seuilAlerte"
-        type="number"
-        min="0"
-        placeholder="Seuil d'alerte"
-        required
-      />
+      <select v-model="nouvelleDepense.categorie" required>
+        <option disabled value="">Choisir une catégorie</option>
+        <option value="Alimentation">Alimentation</option>
+        <option value="Transport">Transport</option>
+        <option value="Loisirs">Loisirs</option>
+        <option value="Études">Études</option>
+      </select>
 
       <button type="submit">Ajouter</button>
     </form>
+
+    <!-- Détail par catégorie -->
+    <h2>Statistiques</h2>
+
+    <button @click="afficherStats = !afficherStats">
+      {{ afficherStats ? 'Masquer le détail par catégorie' :
+        'Afficher le détail par catégorie' }}
+    </button>
+
+    <div v-show="afficherStats" class="stats">
+      <div v-for="cat in categories" :key="cat">
+        <p>{{ cat }} : {{ totalCategorie(cat).toFixed(2) }} DH</p>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -143,142 +148,119 @@ export default {
 
   data() {
     return {
-      rechercheTexte: "",
-      filtreCategorie: "",
-      articleDetailId: null,
-      prochainId: 5,
+      budgetMensuel: 1500,
+      filtreCategorie: "toutes",
+      afficherStats: false,
+      prochainId: 4,
 
-      articles: [
+      categories: [
+        "Alimentation",
+        "Transport",
+        "Loisirs",
+        "Études"
+      ],
+
+      depenses: [
         {
           id: 1,
-          nom: "Eau",
-          categorie: "Boisson",
-          quantite: 20,
-          prixUnitaire: 5,
-          seuilAlerte: 5
+          titre: "Courses alimentaires",
+          montant: 250,
+          categorie: "Alimentation"
         },
         {
           id: 2,
-          nom: "Jus",
-          categorie: "Boisson",
-          quantite: 3,
-          prixUnitaire: 8,
-          seuilAlerte: 5
+          titre: "Bus",
+          montant: 100,
+          categorie: "Transport"
         },
         {
           id: 3,
-          nom: "Chips",
-          categorie: "Snack",
-          quantite: 0,
-          prixUnitaire: 6,
-          seuilAlerte: 4
-        },
-        {
-          id: 4,
-          nom: "Biscuits",
-          categorie: "Snack",
-          quantite: 10,
-          prixUnitaire: 4,
-          seuilAlerte: 3
+          titre: "Cinéma",
+          montant: 80,
+          categorie: "Loisirs"
         }
       ],
 
-      nouvelArticle: {
-        nom: "",
-        categorie: "",
-        quantite: 0,
-        prixUnitaire: 0,
-        seuilAlerte: 5
+      nouvelleDepense: {
+        titre: "",
+        montant: null,
+        categorie: ""
       }
     };
   },
 
   computed: {
-    // Recherche par nom ET filtre par categorie
-    articlesFiltres() {
-      return this.articles.filter(article => {
-        const correspondNom = article.nom
-          .toLowerCase()
-          .includes(this.rechercheTexte.toLowerCase());
+    depensesFiltrees() {
+      if (this.filtreCategorie === "toutes") {
+        return this.depenses;
+      }
 
-        const correspondCategorie =
-          this.filtreCategorie === "" ||
-          article.categorie === this.filtreCategorie;
-
-        return correspondNom && correspondCategorie;
-      });
+      return this.depenses.filter(
+        d => d.categorie === this.filtreCategorie
+      );
     },
 
-    // Valeur totale de TOUS les articles
-    valeurTotaleStock() {
-      return this.articles.reduce((total, article) => {
-        return total + article.quantite * article.prixUnitaire;
-      }, 0);
+    totalFiltre() {
+      return this.depensesFiltrees.reduce(
+        (total, d) => total + d.montant,
+        0
+      );
     },
 
-    // Nombre d'articles dont la quantite est exactement zero
-    nombreRupture() {
-      return this.articles.filter(article => article.quantite === 0)
-        .length;
+    totalGeneral() {
+      return this.depenses.reduce(
+        (total, d) => total + d.montant,
+        0
+      );
+    },
+
+    moyenneDepense() {
+      if (this.depensesFiltrees.length === 0) {
+        return 0;
+      }
+
+      return this.totalFiltre / this.depensesFiltrees.length;
     }
   },
 
   methods: {
-    incrementer(article) {
-      article.quantite++;
+    selectionnerCategorie(cat) {
+      this.filtreCategorie = cat;
     },
 
-    decrementer(article) {
-      if (article.quantite > 0) {
-        article.quantite--;
-      }
-    },
-
-    toggleDetail(article) {
-      if (this.articleDetailId === article.id) {
-        this.articleDetailId = null;
-      } else {
-        this.articleDetailId = article.id;
-      }
-    },
-
-    supprimerArticle(article) {
-      this.articles = this.articles.filter(
-        a => a.id !== article.id
-      );
-
-      if (this.articleDetailId === article.id) {
-        this.articleDetailId = null;
-      }
-    },
-
-    ajouterArticle() {
+    ajouterDepense() {
       if (
-        !this.nouvelArticle.nom.trim() ||
-        !this.nouvelArticle.categorie ||
-        this.nouvelArticle.prixUnitaire < 0 ||
-        this.nouvelArticle.quantite < 0 ||
-        this.nouvelArticle.seuilAlerte < 0
+        !this.nouvelleDepense.titre.trim() ||
+        !this.nouvelleDepense.categorie ||
+        this.nouvelleDepense.montant <= 0
       ) {
         return;
       }
 
-      this.articles.push({
+      this.depenses.push({
         id: this.prochainId++,
-        nom: this.nouvelArticle.nom.trim(),
-        categorie: this.nouvelArticle.categorie,
-        prixUnitaire: this.nouvelArticle.prixUnitaire,
-        quantite: this.nouvelArticle.quantite,
-        seuilAlerte: this.nouvelArticle.seuilAlerte
+        titre: this.nouvelleDepense.titre.trim(),
+        montant: this.nouvelleDepense.montant,
+        categorie: this.nouvelleDepense.categorie
       });
 
-      this.nouvelArticle = {
-        nom: "",
-        categorie: "",
-        quantite: 0,
-        prixUnitaire: 0,
-        seuilAlerte: 5
+      this.nouvelleDepense = {
+        titre: "",
+        montant: null,
+        categorie: ""
       };
+    },
+
+    supprimerDepense(depense) {
+      this.depenses = this.depenses.filter(
+        d => d.id !== depense.id
+      );
+    },
+
+    totalCategorie(cat) {
+      return this.depenses
+        .filter(d => d.categorie === cat)
+        .reduce((total, d) => total + d.montant, 0);
     }
   }
 };
@@ -292,48 +274,43 @@ export default {
 }
 
 input, select, button {
-  padding: 8px;
+  padding: 9px;
   margin: 5px;
 }
 
-.article, .resume {
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  padding: 15px;
-  margin: 12px 0;
-}
-
-.alerte {
-  background: #ffe0e0;
-  color: #a00000;
+.resume, .budget, .depense, .stats {
   padding: 12px;
+  margin: 12px 0;
+  border: 1px solid #ddd;
+  border-radius: 8px;
 }
 
-.rupture {
-  background: #ffcccc;
-  color: #a00000;
-  padding: 5px;
-}
-
-.faible {
-  background: #fff0bb;
-  color: #805600;
-  padding: 5px;
+.ok, .attention, .depasse {
+  padding: 12px;
+  margin: 12px 0;
+  border-radius: 6px;
 }
 
 .ok {
-  background: #d4f5d4;
-  color: #176b17;
-  padding: 5px;
+  background: #d8f5d0;
 }
 
-.detail {
-  margin-top: 10px;
-  padding: 10px;
-  background: #f2f2f2;
+.attention {
+  background: #fff0bb;
 }
 
-.actions {
-  margin-top: 10px;
+.depasse {
+  background: #ffdada;
+}
+
+.active {
+  background: #2457a7;
+  color: white;
+}
+
+.depense {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 </style>
