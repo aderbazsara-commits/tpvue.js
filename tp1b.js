@@ -1,339 +1,283 @@
-<template>
-  <div class="container">
-    <h1>Stock de la buvette associative</h1>
 
-    <!-- Alerte globale -->
-    <p v-if="nombreRupture > 0" class="alerte">
-      Attention ! {{ nombreRupture }} article(s) en rupture de stock.
-    </p>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tableau de bord de notes</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body>
 
-    <!-- Resume global -->
-    <div class="resume">
-      <p>Valeur totale du stock : {{ valeurTotaleStock.toFixed(2) }} DH</p>
-      <p>Nombre d'articles en rupture : {{ nombreRupture }}</p>
-    </div>
+<div id="app">
+  <h1>Tableau de bord de notes</h1>
 
-    <!-- Recherche et filtre -->
-    <div class="filtres">
-      <input
-        v-model="rechercheTexte"
-        type="text"
-        placeholder="Rechercher par nom..."
-      />
+  <!-- Moyenne générale -->
+  <h2>Moyenne générale : {{ moyenneGenerale }}</h2>
 
-      <select v-model="filtreCategorie">
-        <option value="">Toutes les catégories</option>
-        <option value="Boisson">Boisson</option>
-        <option value="Snack">Snack</option>
-        <option value="Autre">Autre</option>
-      </select>
-    </div>
+  <!-- Mention automatique : 5 branches -->
+  <p v-if="moyenneGenerale >= 16">Très bien</p>
+  <p v-else-if="moyenneGenerale >= 14">Bien</p>
+  <p v-else-if="moyenneGenerale >= 12">Assez bien</p>
+  <p v-else-if="moyenneGenerale >= 10">Passable</p>
+  <p v-else>Insuffisant</p>
 
-    <!-- Liste des articles -->
-    <div v-if="articlesFiltres.length === 0">
-      Aucun article trouvé.
-    </div>
+  <!-- Meilleur et moins bon module -->
+  <h3>Meilleur module</h3>
+  <p v-if="moduleMax">
+    {{ moduleMax.nom }} : {{ moduleMax.note }}
+  </p>
+  <p v-else>Aucun module</p>
 
-    <div v-else>
-      <div
-        v-for="article in articlesFiltres"
-        :key="article.id"
-        class="article"
-      >
-        <h3>{{ article.nom }}</h3>
+  <h3>Moins bon module</h3>
+  <p v-if="moduleMin">
+    {{ moduleMin.nom }} : {{ moduleMin.note }}
+  </p>
+  <p v-else>Aucun module</p>
 
-        <p>Catégorie : {{ article.categorie }}</p>
-        <p>Prix unitaire : {{ article.prixUnitaire }} DH</p>
-        <p>Quantité : {{ article.quantite }}</p>
+  <!-- Recherche -->
+  <h2>Liste des modules</h2>
+  <input
+    v-model="recherche"
+    placeholder="Rechercher un module..."
+  >
 
-        <!-- Les conditions doivent respecter cet ordre -->
-        <span v-if="article.quantite === 0" class="rupture">
-          Rupture
-        </span>
+  <!-- Ajout d'un module -->
+  <form @submit.prevent="ajouterModule">
+    <input v-model="nouveauNom" placeholder="Nom du module" required>
+    <input
+      v-model.number="nouvelleNote"
+      type="number"
+      min="0"
+      max="20"
+      step="0.01"
+      placeholder="Note"
+      required
+    >
+    <input
+      v-model.number="nouveauCoefficient"
+      type="number"
+      min="0.01"
+      step="0.01"
+      placeholder="Coefficient"
+      required
+    >
+    <button type="submit">Ajouter</button>
+  </form>
 
-        <span
-          v-else-if="article.quantite <= article.seuilAlerte"
-          class="faible"
-        >
-          Stock faible
-        </span>
+  <!-- Classement -->
+  <table border="1" cellpadding="8">
+    <thead>
+      <tr>
+        <th>Module</th>
+        <th>Note</th>
+        <th>Coefficient</th>
+        <th>Action</th>
+      </tr>
+    </thead>
 
-        <span v-else class="ok">
-          Ok
-        </span>
-
-        <div class="actions">
-          <button @click="incrementer(article)">+</button>
-          <button @click="decrementer(article)">-</button>
-
-          <button @click="toggleDetail(article)">
-            Détail
-          </button>
-
-          <button @click="supprimerArticle(article)">
+    <tbody>
+      <tr v-for="module in modulesAffiches" :key="module.id">
+        <td>{{ module.nom }}</td>
+        <td>{{ module.note }}</td>
+        <td>{{ module.coefficient }}</td>
+        <td>
+          <button @click="supprimerModule(module)">
             Supprimer
           </button>
-        </div>
+          <button @click="toggleDetail(module)">
+            Détail
+          </button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
 
-        <!-- Detail de l'article -->
-        <div
-          v-show="articleDetailId === article.id"
-          class="detail"
-        >
-          <p>Identifiant : {{ article.id }}</p>
-          <p>Seuil d'alerte : {{ article.seuilAlerte }}</p>
-          <p>
-            Valeur du stock :
-            {{ (article.quantite * article.prixUnitaire).toFixed(2) }} DH
-          </p>
-        </div>
-      </div>
-    </div>
+  <!-- Modules à rattraper -->
+  <h2>
+    Modules à rattraper
+    <span>{{ modulesARattraper.length }}</span>
+  </h2>
 
-    <!-- Formulaire d'ajout -->
-    <h2>Ajouter un article</h2>
+  <ul>
+    <li v-for="module in modulesARattraper" :key="module.id">
+      {{ module.nom }} : {{ module.note }}/20
+    </li>
+  </ul>
 
-    <form @submit.prevent="ajouterArticle">
-      <input
-        v-model.trim="nouvelArticle.nom"
-        placeholder="Nom de l'article"
-        required
-      />
-
-      <select v-model="nouvelArticle.categorie" required>
-        <option disabled value="">Choisir une catégorie</option>
-        <option value="Boisson">Boisson</option>
-        <option value="Snack">Snack</option>
-        <option value="Autre">Autre</option>
-      </select>
-
-      <input
-        v-model.number="nouvelArticle.prixUnitaire"
-        type="number"
-        min="0"
-        step="0.01"
-        placeholder="Prix unitaire"
-        required
-      />
-
-      <input
-        v-model.number="nouvelArticle.quantite"
-        type="number"
-        min="0"
-        placeholder="Quantité"
-        required
-      />
-
-      <input
-        v-model.number="nouvelArticle.seuilAlerte"
-        type="number"
-        min="0"
-        placeholder="Seuil d'alerte"
-        required
-      />
-
-      <button type="submit">Ajouter</button>
-    </form>
+  <!-- Panneau de détail -->
+  <div v-show="detailVisible">
+    <h2>Détail du module</h2>
+    <p v-if="moduleSelectionne">
+      Nom : {{ moduleSelectionne.nom }}<br>
+      Note : {{ moduleSelectionne.note }}<br>
+      Coefficient : {{ moduleSelectionne.coefficient }}
+    </p>
+    <button @click="detailVisible = false">Fermer</button>
   </div>
-</template>
+
+  <p v-if="tousValides">Tous les modules sont validés !</p>
+  <p v-else>Il reste des modules à valider.</p>
+</div>
 
 <script>
-export default {
-  name: "App",
+const { createApp } = Vue;
 
+createApp({
   data() {
     return {
-      rechercheTexte: "",
-      filtreCategorie: "",
-      articleDetailId: null,
-      prochainId: 5,
-
-      articles: [
-        {
-          id: 1,
-          nom: "Eau",
-          categorie: "Boisson",
-          quantite: 20,
-          prixUnitaire: 5,
-          seuilAlerte: 5
-        },
-        {
-          id: 2,
-          nom: "Jus",
-          categorie: "Boisson",
-          quantite: 3,
-          prixUnitaire: 8,
-          seuilAlerte: 5
-        },
-        {
-          id: 3,
-          nom: "Chips",
-          categorie: "Snack",
-          quantite: 0,
-          prixUnitaire: 6,
-          seuilAlerte: 4
-        },
-        {
-          id: 4,
-          nom: "Biscuits",
-          categorie: "Snack",
-          quantite: 10,
-          prixUnitaire: 4,
-          seuilAlerte: 3
-        }
+      modules: [
+        { id: 1, nom: "Algorithmique", note: 16, coefficient: 3 },
+        { id: 2, nom: "Base de données", note: 12, coefficient: 2 },
+        { id: 3, nom: "Programmation Web", note: 8, coefficient: 3 },
+        { id: 4, nom: "Mathématiques", note: 14, coefficient: 4 },
+        { id: 5, nom: "Réseaux", note: 9, coefficient: 2 }
       ],
 
-      nouvelArticle: {
-        nom: "",
-        categorie: "",
-        quantite: 0,
-        prixUnitaire: 0,
-        seuilAlerte: 5
-      }
+      recherche: "",
+      nouveauNom: "",
+      nouvelleNote: null,
+      nouveauCoefficient: null,
+
+      prochainId: 6,
+      detailVisible: false,
+      moduleSelectionne: null
     };
   },
 
   computed: {
-    // Recherche par nom ET filtre par categorie
-    articlesFiltres() {
-      return this.articles.filter(article => {
-        const correspondNom = article.nom
-          .toLowerCase()
-          .includes(this.rechercheTexte.toLowerCase());
+    // 1. Moyenne pondérée
+    moyenneGenerale() {
+      const sommePonderee = this.modules.reduce(
+        (total, module) =>
+          total + module.note * module.coefficient,
+        0
+      );
 
-        const correspondCategorie =
-          this.filtreCategorie === "" ||
-          article.categorie === this.filtreCategorie;
+      const sommeCoefficients = this.modules.reduce(
+        (total, module) => total + module.coefficient,
+        0
+      );
 
-        return correspondNom && correspondCategorie;
-      });
+      if (sommeCoefficients === 0) {
+        return 0;
+      }
+
+      return Number(
+        (sommePonderee / sommeCoefficients).toFixed(2)
+      );
     },
 
-    // Valeur totale de TOUS les articles
-    valeurTotaleStock() {
-      return this.articles.reduce((total, article) => {
-        return total + article.quantite * article.prixUnitaire;
-      }, 0);
+    // 2. Modules à rattraper
+    modulesARattraper() {
+      return this.modules.filter(
+        module => module.note < 10
+      );
     },
 
-    // Nombre d'articles dont la quantite est exactement zero
-    nombreRupture() {
-      return this.articles.filter(article => article.quantite === 0)
-        .length;
+    // 3. Classement décroissant sans modifier le tableau original
+    modulesTries() {
+      return [...this.modules].sort(
+        (a, b) => b.note - a.note
+      );
+    },
+
+    // 4. Recherche insensible à la casse
+    modulesAffiches() {
+      return this.modulesTries.filter(module =>
+        module.nom.toLowerCase().includes(
+          this.recherche.toLowerCase()
+        )
+      );
+    },
+
+    // 5. Meilleur module
+    moduleMax() {
+      if (this.modulesTries.length === 0) {
+        return null;
+      }
+
+      return this.modulesTries[0];
+    },
+
+    // 6. Moins bon module
+    moduleMin() {
+      if (this.modulesTries.length === 0) {
+        return null;
+      }
+
+      return this.modulesTries[
+        this.modulesTries.length - 1
+      ];
+    },
+
+    // Aller plus loin : tous les modules validés
+    tousValides() {
+      return this.modules.every(
+        module => module.note >= 10
+      );
     }
   },
 
   methods: {
-    incrementer(article) {
-      article.quantite++;
-    },
-
-    decrementer(article) {
-      if (article.quantite > 0) {
-        article.quantite--;
-      }
-    },
-
-    toggleDetail(article) {
-      if (this.articleDetailId === article.id) {
-        this.articleDetailId = null;
-      } else {
-        this.articleDetailId = article.id;
-      }
-    },
-
-    supprimerArticle(article) {
-      this.articles = this.articles.filter(
-        a => a.id !== article.id
-      );
-
-      if (this.articleDetailId === article.id) {
-        this.articleDetailId = null;
-      }
-    },
-
-    ajouterArticle() {
+    // Ajouter un module
+    ajouterModule() {
       if (
-        !this.nouvelArticle.nom.trim() ||
-        !this.nouvelArticle.categorie ||
-        this.nouvelArticle.prixUnitaire < 0 ||
-        this.nouvelArticle.quantite < 0 ||
-        this.nouvelArticle.seuilAlerte < 0
+        !this.nouveauNom.trim() ||
+        this.nouvelleNote === null ||
+        this.nouvelleNote === "" ||
+        this.nouvelleNote < 0 ||
+        this.nouvelleNote > 20 ||
+        this.nouveauCoefficient === null ||
+        this.nouveauCoefficient === "" ||
+        this.nouveauCoefficient <= 0
       ) {
         return;
       }
 
-      this.articles.push({
+      this.modules.push({
         id: this.prochainId++,
-        nom: this.nouvelArticle.nom.trim(),
-        categorie: this.nouvelArticle.categorie,
-        prixUnitaire: this.nouvelArticle.prixUnitaire,
-        quantite: this.nouvelArticle.quantite,
-        seuilAlerte: this.nouvelArticle.seuilAlerte
+        nom: this.nouveauNom.trim(),
+        note: this.nouvelleNote,
+        coefficient: this.nouveauCoefficient
       });
 
-      this.nouvelArticle = {
-        nom: "",
-        categorie: "",
-        quantite: 0,
-        prixUnitaire: 0,
-        seuilAlerte: 5
-      };
+      this.nouveauNom = "";
+      this.nouvelleNote = null;
+      this.nouveauCoefficient = null;
+    },
+
+    // Supprimer un module
+    supprimerModule(module) {
+      this.modules = this.modules.filter(
+        element => element.id !== module.id
+      );
+
+      if (
+        this.moduleSelectionne &&
+        this.moduleSelectionne.id === module.id
+      ) {
+        this.detailVisible = false;
+        this.moduleSelectionne = null;
+      }
+    },
+
+    // Afficher ou masquer le détail
+    toggleDetail(module) {
+      if (
+        this.detailVisible &&
+        this.moduleSelectionne &&
+        this.moduleSelectionne.id === module.id
+      ) {
+        this.detailVisible = false;
+      } else {
+        this.moduleSelectionne = module;
+        this.detailVisible = true;
+      }
     }
   }
-};
+}).mount("#app");
 </script>
 
-<style>
-.container {
-  max-width: 800px;
-  margin: 30px auto;
-  font-family: Arial, sans-serif;
-}
-
-input, select, button {
-  padding: 8px;
-  margin: 5px;
-}
-
-.article, .resume {
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  padding: 15px;
-  margin: 12px 0;
-}
-
-.alerte {
-  background: #ffe0e0;
-  color: #a00000;
-  padding: 12px;
-}
-
-.rupture {
-  background: #ffcccc;
-  color: #a00000;
-  padding: 5px;
-}
-
-.faible {
-  background: #fff0bb;
-  color: #805600;
-  padding: 5px;
-}
-
-.ok {
-  background: #d4f5d4;
-  color: #176b17;
-  padding: 5px;
-}
-
-.detail {
-  margin-top: 10px;
-  padding: 10px;
-  background: #f2f2f2;
-}
-
-.actions {
-  margin-top: 10px;
-}
-</style>
+</body>
+</html>
