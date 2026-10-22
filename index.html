@@ -1,0 +1,54 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion des tâches</title>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="TaskList.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+        }
+
+        button {
+            padding: 8px 12px;
+            margin: 5px;
+            cursor: pointer;
+        }
+
+        .actif {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .task {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin: 10px 0;
+        }
+
+        .terminee {
+            background-color: #e0ffe0;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <task-list></task-list>
+    </div>
+
+    <script>
+        const app = Vue.createApp({});
+
+        app.component("task-list", TaskList);
+
+        app.mount("#app");
+    </script>
+</body>
+</html>
